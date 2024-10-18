@@ -1,0 +1,113 @@
+services:
+  db_nofia:
+    image: mysql:8.0-oracle
+    container_name: db_nofia
+    restart: unless-stopped
+    ports:
+      - "3308:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: nofia
+    networks:
+      - nofia_network
+
+  db_auth:
+    image: mysql:8.0-oracle
+    container_name: db_auth
+    restart: unless-stopped
+    ports:
+      - "3309:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: authentication
+    networks:
+      - nofia_network
+
+  eureka-server:
+    image: iwomi/eureka-server:pre-prod
+    restart: unless-stopped
+    container_name: eureka-server
+    ports:
+      - "8761:8761"
+    environment:
+      EUREKA_SERVER_IP: "http://172.17.0.1"
+    networks:
+      - nofia_network
+
+  nofia-container:
+    image: nofia-app
+    restart: unless-stopped
+    container_name: nofia-container
+    ports:
+      - "8082:8082" # :8082 is the port in application.yml
+    environment:
+      SPRING_DATASOURCE_URL: "jdbc:mysql://db_nofia:3306/nofia"
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: root
+    networks:
+      - nofia_network
+
+  auth-container:
+    image: auth-app
+    restart: unless-stopped
+    container_name: auth-container
+    ports:
+      - "8087:8080"
+    environment:
+      SPRING_DATASOURCE_URL: "jdbc:mysql://db_auth:3306/authentication"
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: root
+    networks:
+      - nofia_network
+
+  gateway-container:
+    image: gateway-app
+    restart: unless-stopped
+    container_name: gateway-container
+    ports:
+      - "8222:8222"
+    networks:
+      - nofia_network
+
+  db_iwomicore:
+    image: mysql:8.0-oracle
+    container_name: db_iwomicore
+    restart: unless-stopped
+    ports:
+      - "3307:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: digitalbank
+    networks:
+      - nofia_network
+
+  iwomicore_app:
+    image: iwomi/iwomicore:dev
+    container_name: iwomicore_app
+    restart: unless-stopped
+    ports:
+      - "8081:8081"
+    environment:
+      EUREKA_SERVER_URL: "http://eureka-server:8761"
+      CORE_SPRING_URL: "jdbc:mysql://db_iwomicore:3306/digitalbank"
+      CORE_SPRING_USERNAME: root
+      CORE_SPRING_PASSWORD: root
+      CORE_PORT: 8081
+    networks:
+      - nofia_network
+
+  # FRONTEND ###
+  frontend:
+    image: iwomi/nofia-front:beta
+    container_name: backoffice_nofia
+    restart: always
+    ports:
+      - "3000:80"
+    environment:
+      REACT_APP_BACKEND_URL: http://148.113.191.174:8222/api/v1
+    networks:
+      - nofia_network
+
+networks:
+  nofia_network:
+    driver: bridge

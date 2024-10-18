@@ -1,0 +1,156 @@
+---
+- name: Deploy Nofia project Microservices and their Databases
+  hosts: [server]  # the group in the inventory file
+  become: true
+  vars:
+    docker_network: nofia_network
+    base_dir: /home/itoli_michel
+
+  tasks:
+    - name: Create Docker network if it doesn't exist
+      community.docker.docker_network:
+        name: "{{ docker_network }}"
+        state: present
+
+    # - name: Copy Nofia application Docker image to the server
+    #   copy:
+    #     src: "/home/mike/Documents/GitHub/NofiaPay/nofia.tar"
+    #     dest: "{{ base_dir }}/app_files/"
+
+    # - name: Copy Auth application Docker image to the server
+    #   copy:
+    #     src: "/home/mike/Documents/GitHub/Auth-microservice/auth.tar"
+    #     dest: "{{ base_dir }}/app_files/"
+
+    # - name: Copy Gateway application Docker image to the server
+    #   copy:
+    #     src: "/home/mike/Documents/GitHub/Api-Gateway-MS/gateway.tar"
+    #     dest: "{{ base_dir }}/app_files/"
+
+    - name: Load Nofia Docker image
+      community.docker.docker_image:
+        name: "nofia"
+        load_path: "{{ base_dir }}/app_files/nofia.tar"
+
+    - name: Load Auth Docker image
+      community.docker.docker_image:
+        name: "auth"
+        load_path: "{{ base_dir }}/app_files/auth.tar"
+
+    - name: Load Gateway Docker image
+      community.docker.docker_image:
+        name: "gateway"
+        load_path: "{{ base_dir }}/app_files/gateway.tar"
+
+    - name: Run MySQL container for Nofia
+      community.docker.docker_container:
+        name: db_nofia
+        image: mysql:8.0-oracle
+        state: started
+        restart_policy: unless-stopped
+        ports:
+          - "3308:3306"
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: nofia
+        networks:
+          - "{{ docker_network }}"
+
+    - name: Run MySQL container for Auth
+      community.docker.docker_container:
+        name: db_auth
+        image: mysql:8.0-oracle
+        state: started
+        restart_policy: unless-stopped
+        ports:
+          - "3306:3306"
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: authentication
+        networks:
+          - "{{ docker_network }}"
+
+    - name: Run Eureka server container
+      community.docker.docker_container:
+        name: eureka-server
+        image: iwomi/eureka-server:pre-prod
+        state: started
+        restart_policy: unless-stopped
+        ports:
+          - "8761:8761"
+        env:
+          EUREKA_SERVER_IP: "http://172.17.0.1"
+        networks:
+          - "{{ docker_network }}"
+
+    - name: Run Nofia application container
+      community.docker.docker_container:
+        name: nofia_app
+        image: nofia
+        state: started
+        restart_policy: unless-stopped
+        ports:
+          - "8082:8080"
+        env:
+          SPRING_DATASOURCE_URL: "jdbc:mysql://db_nofia:3306/nofia"
+          SPRING_DATASOURCE_USERNAME: root
+          SPRING_DATASOURCE_PASSWORD: root
+        networks:
+          - "{{ docker_network }}"
+
+    - name: Run Auth application container
+      community.docker.docker_container:
+        name: auth_app
+        image: auth
+        state: started
+        restart_policy: unless-stopped
+        ports:
+          - "8080:8080"
+        env:
+          SPRING_DATASOURCE_URL: "jdbc:mysql://db_auth:3306/authentication"
+          SPRING_DATASOURCE_USERNAME: root
+          SPRING_DATASOURCE_PASSWORD: root
+        networks:
+          - "{{ docker_network }}"
+
+    - name: Run Gateway application container
+      community.docker.docker_container:
+        name: gateway_app
+        image: gateway
+        state: started
+        restart_policy: unless-stopped
+        ports:
+          - "8222:8080"
+        networks:
+          - "{{ docker_network }}"
+
+    - name: Run MySQL container for Iwomi Core
+      community.docker.docker_container:
+        name: db_iwomicore
+        image: mysql:8.0-oracle
+        state: started
+        restart_policy: unless-stopped
+        ports:
+          - "3307:3306"
+        env:
+          MYSQL_ROOT_PASSWORD: root
+          MYSQL_DATABASE: digitalbank
+        networks:
+          - "{{ docker_network }}"
+
+    - name: Run Iwomi Core application container
+      community.docker.docker_container:
+        name: iwomicore_app
+        image: iwomi/iwomicore:dev
+        state: started
+        restart_policy: unless-stopped
+        ports:
+          - "8081:8081"
+        env:
+          EUREKA_SERVER_URL: "http://eureka-server:8761/eureka/"
+          CORE_SPRING_URL: "jdbc:mysql://db_iwomicore:3306/digitalbank"
+          CORE_SPRING_USERNAME: root
+          CORE_SPRING_PASSWORD: root
+          CORE_PORT: 8081
+        networks:
+          - "{{ docker_network }}"

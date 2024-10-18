@@ -1,0 +1,23 @@
+# Project Setup Guide
+
+Follow the steps below to prepare and build the microservices.
+
+## 1. Start with the `prepare.sh` File
+
+To begin the setup, start with the `prepare.sh` file.
+
+## 2. Make the Script Executable
+
+Before running the script, make it executable by using the following command:
+
+```bash
+chmod +x prepare.sh
+```
+
+## 3. Run Script
+
+Below is the command to run sh file in terminal
+
+```bash
+./prepare.sh
+```
